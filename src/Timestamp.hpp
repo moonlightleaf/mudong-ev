@@ -16,13 +16,13 @@ using Minutes = std::chrono::minutes;
 using Hours = std::chrono::hours;
 
 // chrono中有system_clock和steady_clock两种时钟，第一种适合用来表示日期，时间戳用，第二种适合用来计算两者之间的相对时间间隔，不受系统时间调整的影响
-using TimeStamp = std::chrono::time_point<system_clock, Nanoseconds>;
+using Timestamp = std::chrono::time_point<system_clock, Nanoseconds>;
 
 namespace clock {
 
-inline TimeStamp now() { return system_clock::now(); }
-inline TimeStamp nowAfter(Nanoseconds interval) { return system_clock::now() + interval; }
-inline TimeStamp nowBefore(Nanoseconds interval) { return system_clock::now() - interval; }
+inline Timestamp now() { return system_clock::now(); }
+inline Timestamp nowAfter(Nanoseconds interval) { return system_clock::now() + interval; }
+inline Timestamp nowBefore(Nanoseconds interval) { return system_clock::now() - interval; }
 
 } // namespace clock 
 
@@ -32,12 +32,12 @@ template <typename T>
 struct IntervalTypeCheckImpl
 {
     static constexpr bool value =
-            std::is_same<T, Nanosecond>::value ||
-            std::is_same<T, Microsecond>::value ||
-            std::is_same<T, Millisecond>::value ||
-            std::is_same<T, Second>::value ||
-            std::is_same<T, Minute>::value ||
-            std::is_same<T, Hour>::value;
+            std::is_same<T, Nanoseconds>::value ||
+            std::is_same<T, Microseconds>::value ||
+            std::is_same<T, Milliseconds>::value ||
+            std::is_same<T, Seconds>::value ||
+            std::is_same<T, Minutes>::value ||
+            std::is_same<T, Hours>::value;
 };
 
 } // anonymous namespace

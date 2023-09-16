@@ -13,7 +13,6 @@
 #include <syncstream>
 #include <string.h>
 #include <fstream>
-#include <source_location>
 #include <functional>
 #include <tuple>
 
@@ -21,10 +20,10 @@ namespace mudong {
 
 namespace ev {
 
-namespace {
+inline std::string logFileName;
+inline std::ofstream ofs;
 
-std::string logFileName;
-std::ofstream ofs;
+namespace {
 
 std::vector<std::string_view> logLevelStr{
     "[ TRACE]",
@@ -35,7 +34,7 @@ std::vector<std::string_view> logLevelStr{
     "[ FATAL]"
 };
 
-std::string timestamp() {
+inline std::string timestamp() {
     auto now = std::chrono::system_clock::now();
     std::time_t time = std::chrono::system_clock::to_time_t(now);
     
@@ -59,15 +58,15 @@ enum class LOG_LEVEL : unsigned {
 };
 
 #ifndef NDEBUG
-LOG_LEVEL logLevel = LOG_LEVEL::LOG_LEVEL_DEBUG;
+static LOG_LEVEL logLevel = LOG_LEVEL::LOG_LEVEL_DEBUG;
 #else
-LOG_LEVEL logLevel = LOG_LEVEL::LOG_LEVEL_INFO;
+static LOG_LEVEL logLevel = LOG_LEVEL::LOG_LEVEL_INFO;
 #endif
 
 namespace internal {
 
 template<typename... Args>
-void logSys(const std::string& file,
+inline void logSys(const std::string& file,
             int line,
             int to_abort,
             const std::string& fmt,
@@ -86,8 +85,12 @@ void logSys(const std::string& file,
     (void)syserr; // erase [-Werror=unused-value]
     ss << (to_abort ? sysfa : syserr);
     ss << std::vformat(fmt, std::make_format_args(args...));
-    
-    {
+
+    if (logFileName.empty() || logFileName == "stdout") {
+        std::osyncstream osync(std::cout);
+        osync << std::format("{}: {} - {}:{}\n", ss.str().c_str(), strerror(errno), strrchr(file.c_str(), '/') + 1, line) << std::flush;
+    }
+    else {
         std::osyncstream osync(ofs); // 同步写入流
         osync << std::format("{}: {} - {}:{}\n", ss.str().c_str(), strerror(errno), strrchr(file.c_str(), '/') + 1, line) << std::flush;
     }
@@ -98,7 +101,7 @@ void logSys(const std::string& file,
 }
 
 template<typename... Args>
-void logBase(const std::string& file,
+inline void logBase(const std::string& file,
             int line,
             LOG_LEVEL level,
             int to_abort,
@@ -114,7 +117,11 @@ void logBase(const std::string& file,
     ss << " " << logLevelStr[static_cast<unsigned>(level)] << " ";
     ss << std::vformat(fmt, std::make_format_args(args...));
 
-    {
+    if (logFileName.empty() || logFileName == "stdout") {
+        std::osyncstream osync(std::cout);
+        osync << std::format("{} - {}:{}\n", ss.str(), strrchr(file.c_str(), '/') + 1, line) << std::flush;
+    }
+    else {
         std::osyncstream osync(ofs);
         osync << std::format("{} - {}:{}\n", ss.str(), strrchr(file.c_str(), '/') + 1, line) << std::flush;
     }
@@ -149,14 +156,16 @@ mudong::ev::internal::logBase(__FILE__, __LINE__, mudong::ev::LOG_LEVEL::LOG_LEV
 
 #define SYSFATAL(fmt, ...) mudong::ev::internal::logSys(__FILE__, __LINE__, 1, fmt, ##__VA_ARGS__);
 
-void setLogLevel(LOG_LEVEL rhs) { logLevel = rhs; }
+inline void setLogLevel(LOG_LEVEL rhs) { logLevel = rhs; }
 
-void setLogFile(const std::string& fileName) {
+inline void setLogFile(const std::string& fileName) {
     //关闭logFileName
-    if (logFileName.size() > 0) {
+    if (logFileName.size() > 0 && logFileName != "stdout") {
         ofs.close();
     }
-    ofs.open(fileName, std::ios_base::out | std::ios_base::app);
+    if (fileName != "stdout") {
+        ofs.open(fileName, std::ios_base::out | std::ios_base::app);
+    }
     logFileName = std::move(fileName);
 }
 
