@@ -62,6 +62,10 @@ void TcpServer::startInLoop() {
     INFO("TcpServer::start() {} with {} eventLoop thread(s)", local_.toIpPort(), numThreads_);
 
     baseServer_ = std::make_unique<TcpServerSingle>(baseLoop_, local_);
+    /**
+     * 如果想改主从Reactor结构，从这里入手，如果只有一个Reactor，则baseServer_回调即为外部传进来的回调，否则，baseServer_执行自己的回调（TcpServer中添加回调，
+     * 来实现连接分配算法），由子Reactor执行外部传进来的回调。Connection对象绑定loop的步骤也需要修改位于TcpServerSingle.cc : 32
+    **/
     baseServer_->setConnectionCallback(connectionCallback_);
     baseServer_->setMessageCallback(messageCallback_);
     baseServer_->setWriteCompleteCallback(writeCompleteCallback_);
@@ -82,7 +86,7 @@ void TcpServer::startInLoop() {
 
 void TcpServer::runInThread(size_t index) {
     EventLoop loop;
-    TcpServerSingle server(&loop, local_);
+    TcpServerSingle server(&loop, local_); // 子EventLoop中的单独TcpServerSingle实例
 
     server.setConnectionCallback(connectionCallback_);
     server.setMessageCallback(messageCallback_);

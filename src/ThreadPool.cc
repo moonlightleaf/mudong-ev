@@ -9,7 +9,7 @@ ThreadPool::ThreadPool(size_t threadNum, size_t maxQueueSize, const ThreadInitCa
           threadInitCallback_(callback)
 {
     assert(maxQueueSize_ > 0);
-    for (size_t i = 1; i <= threadNum; ++i) {
+    for (size_t i = 0; i < threadNum; ++i) { // 从0开始标号，作为线程池中线程的标识
         threads_.emplace_back(new std::thread([i, this](){runInThread(i);}));
     }
     TRACE("ThreadPool construct threadNum {}, maxQueueSize {}", threadNum, maxQueueSize);

@@ -21,7 +21,9 @@ using Timestamp = std::chrono::time_point<system_clock, Nanoseconds>;
 namespace clock {
 
 inline Timestamp now() { return system_clock::now(); }
+// 从当前时刻开始，时间流转一段长度后的时刻对应的时间戳
 inline Timestamp nowAfter(Nanoseconds interval) { return system_clock::now() + interval; }
+// 从当前时刻开始，时间倒退一段长度后的时刻对应的时间戳
 inline Timestamp nowBefore(Nanoseconds interval) { return system_clock::now() - interval; }
 
 } // namespace clock 

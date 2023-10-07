@@ -49,9 +49,9 @@ void Acceptor::listen() {
     loop_->assertInLoopThread();
     int ret = ::listen(acceptfd_, SOMAXCONN);
     if (ret == -1) {
-        SYSFATAL("Acceptor listen");
+        SYSFATAL("Acceptor listen fatal");
     }
-    acceptChannel_.setReadCallback([this](){handleRead();});
+    acceptChannel_.setReadCallback([this](){handleRead();}); // 当有连接请求到来时，交由handleRead处理
     acceptChannel_.enableRead();
 }
 
@@ -72,6 +72,7 @@ void Acceptor::handleRead() {
         switch (savedErrno) {
             case ECONNABORTED: // connection aborted
             case EMFILE: // 文件描述符用完了
+                ERROR(strerror(savedErrno)); // log输出两种错误类型
                 break;
             default:
                 FATAL("unexpected accept4() error");

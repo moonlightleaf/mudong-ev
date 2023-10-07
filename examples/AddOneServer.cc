@@ -1,48 +1,48 @@
-#include <unordered_map>
-#include <thread>
-#include <string>
 #include <iostream>
+#include <future>
+#include <string>
+#include <unordered_map>
 
 #include <TcpServer.hpp>
 #include <EventLoop.hpp>
 #include <Logger.hpp>
 #include <TcpConnection.hpp>
-
-using namespace std::chrono;
+#include <ThreadPool.hpp>
 
 using namespace mudong::ev;
 
-class EchoServer : noncopyable {
+using namespace std::chrono;
+
+class AddOneServer : noncopyable {
 
 public:
-    EchoServer(EventLoop* loop, const InetAddress& addr, size_t threadNums = 1, Nanoseconds timeout = 30s)
+    AddOneServer(EventLoop* loop, const InetAddress& addr, size_t threadNums = 1, Nanoseconds timeout = 30s, size_t threadPoolSize = 8)
             : loop_(loop),
               server_(loop, addr),
               threadNums_(threadNums),
               timeout_(timeout),
-              timer_(loop_->runEvery(timeout_, [this](){onTimeout();}))
+              timer_(loop->runEvery(timeout_, [this](){onTimeout();})),
+              threadPool_(threadPoolSize)
     {
-        server_.setConnectionCallback(std::bind(&EchoServer::onConnection, this, std::placeholders::_1));
-        server_.setMessageCallback(std::bind(&EchoServer::onMessage, this, std::placeholders::_1, std::placeholders::_2));
-        server_.setWriteCompleteCallback(std::bind(&EchoServer::onWriteComplete, this, std::placeholders::_1));
+        server_.setConnectionCallback(std::bind(&AddOneServer::onConnection, this, std::placeholders::_1));
+        server_.setMessageCallback(std::bind(&AddOneServer::onMessage, this, std::placeholders::_1, std::placeholders::_2));
+        server_.setWriteCompleteCallback(std::bind(&AddOneServer::onWriteComplete, this, std::placeholders::_1));
     }
 
-    ~EchoServer() {
+    ~AddOneServer() {
         loop_->cancelTimer(timer_);
     }
 
-    void start()
-    {
+    void start() {
         server_.setNumThread(threadNums_);
         server_.start();
     }
 
-    void onConnection (const TcpConnectionPtr& conn) {
+    void onConnection(const TcpConnectionPtr& conn) {
         INFO("connection {} is {}", conn->name(), conn->connected() ? "up" : "down");
 
         if (conn->connected()) {
-            conn->setHighWaterMarkCallback(std::bind(&EchoServer::onHighWaterMark, this, std::placeholders::_1, std::placeholders::_2), 1024);
-            expireAfter(conn, timeout_);
+            conn->setHighWaterMarkCallback(std::bind(&AddOneServer::onHighWaterMark, this, std::placeholders::_1, std::placeholders::_2), 1024);
         }
         else connections_.erase(conn);
     }
@@ -51,11 +51,22 @@ public:
         TRACE("connection {} recv {} byte(s)", conn->name(), buffer.readableBytes());
 
         int tid = static_cast<pid_t>(syscall(SYS_gettid));
-        conn->send("Echo handled by tid " + std::to_string(tid) + " : ");
+        conn->send("Connection handled by tid " + std::to_string(tid) + ", ");
 
-        // 发送并清空buffer
+        std::promise<long long> res_promise;
+        std::future<long long> res_future = res_promise.get_future();
+
+        threadPool_.runTask([&](){
+            long long oldNum = std::stoll(buffer.retrieveAllAsString());
+            int ttid = static_cast<pid_t>(syscall(SYS_gettid));
+            buffer.append("calculation handled by tid " + std::to_string(ttid) + ": ");
+            res_promise.set_value(oldNum + 1);
+        });
+
+        std::string res = std::to_string(res_future.get());
+        buffer.append(res + "\n");
         conn->send(buffer);
-        
+
         expireAfter(conn, timeout_);
     }
 
@@ -89,21 +100,22 @@ private:
         connections_[conn] = clock::nowAfter(interval);
     }
 
+    using ConnectionList = std::unordered_map<TcpConnectionPtr, Timestamp>;
+    
     EventLoop* loop_;
     TcpServer server_;
     const size_t threadNums_;
     const Nanoseconds timeout_;
     Timer* timer_;
-    using ConnectionList = std::unordered_map<TcpConnectionPtr, Timestamp>;
     ConnectionList connections_;
-
+    ThreadPool threadPool_;
 };
 
 int main() {
     setLogLevel(LOG_LEVEL::LOG_LEVEL_TRACE);
     EventLoop loop;
     InetAddress local(9877);
-    EchoServer server(&loop, local, 3, 20s);
+    AddOneServer server(&loop, local, 32, 30s, 32);
     server.start();
 
     loop.runAfter(60s, [&]() {
@@ -116,4 +128,6 @@ int main() {
     });
 
     loop.loop();
+
+    return 0;
 }

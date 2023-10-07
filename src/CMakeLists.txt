@@ -26,7 +26,7 @@ target_link_libraries(mudong-ev pthread)
 
 install(TARGETS mudong-ev DESTINATION lib)
 set(HEADERS
-        Acceptro.hpp
+        Acceptor.hpp
         Buffer.hpp
         Callbacks.hpp
         Channel.hpp
@@ -46,9 +46,10 @@ set(HEADERS
         Timer.hpp
         TimerQueue.hpp
         Timestamp.hpp
+        ThreadPool.hpp
 )
 
 
 # set_target_properties(mudong-ev PROPERTIES LINKER_LANGUAGE CXX)
-install(FILES ${HEADERS} DESTINATION include)
+install(FILES ${HEADERS} DESTINATION "${CMAKE_BINARY_DIR}/include")
 

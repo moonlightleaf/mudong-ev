@@ -47,7 +47,7 @@ struct timespec {
 
 struct itimerspec {
     struct timespec it_interval;  // 定时器重复间隔时间
-    struct timespec it_value;     // 定时器初次到期时间
+    struct timespec it_value;     // 定时器初次到期时间，以倒计时的方式存储
 };
 */
 
@@ -71,7 +71,7 @@ TimerQueue::TimerQueue(EventLoop* loop)
           timerChannel_(loop, timerfd_)
 {
     loop_->assertInLoopThread();
-    timerChannel_.setReadCallback([this](){this->handleRead();});
+    timerChannel_.setReadCallback([this](){this->handleRead();}); // 定时器触发时，timerFd_会有可读事件，交由handleRead来处理
     timerChannel_.enableRead();
 }
 
@@ -109,7 +109,7 @@ void TimerQueue::cancelTimer(Timer* timer) {
 
 void TimerQueue::handleRead() {
     loop_->assertInLoopThread();
-    timerfdRead(timerfd_);
+    timerfdRead(timerfd_); // 将可读的内容读取一下从而清空缓冲区
 
     Timestamp now(clock::now());
     for (auto& e : getExpired(now)) {
@@ -128,7 +128,7 @@ void TimerQueue::handleRead() {
     }
 
     if (!timers_.empty()) {
-        timerfdSet(timerfd_, timers_.begin()->first); // 如果还有未到时间的定时器，那就把最近的时间点作为触发时间点
+        timerfdSet(timerfd_, timers_.begin()->first); // 如果还有未到时间的定时器，那就把最近的时间点作为触发时间点（向内核中注册的定时器其实只有一个，定时器队列由网络库维护）
     }
 }
 
